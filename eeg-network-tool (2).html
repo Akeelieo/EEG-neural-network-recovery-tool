@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural Network Inference Tool — Neurophysiology</title>
+<style>
+  /* ---- Old-school clinical GUI: system fonts, flat surfaces, hard edges ---- */
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: Arial, Helvetica, "Frutiger", sans-serif;
+    font-size: 14px;
+    color: #212b32;
+    background: #ffffff;
+  }
+  a { color: #005eb8; }
+
+  /* ---- Top NHS blue bar ---- */
+  .topbar {
+    background: #005eb8;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    height: 56px;
+    border-bottom: 4px solid #003087;
+  }
+  .nhs-logo {
+    background: #ffffff;
+    color: #005eb8;
+    font-weight: 700;
+    font-style: italic;
+    letter-spacing: 1px;
+    font-size: 22px;
+    padding: 4px 8px;
+    line-height: 1;
+    font-family: Arial, sans-serif;
+    margin-right: 16px;
+    user-select: none;
+  }
+  .topbar .service-name {
+    font-size: 16px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .topbar .service-sub {
+    font-size: 12px;
+    font-weight: 400;
+    opacity: 0.85;
+    margin-left: 10px;
+    border-left: 1px solid rgba(255,255,255,0.4);
+    padding-left: 10px;
+  }
+  .topbar .user {
+    margin-left: auto;
+    font-size: 12px;
+    text-align: right;
+    line-height: 1.4;
+  }
+
+  /* ---- Navigation strip ---- */
+  nav {
+    background: #003087;
+    display: flex;
+    padding: 0 16px;
+  }
+  nav button {
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 10px 18px;
+    cursor: pointer;
+    border-right: 1px solid rgba(255,255,255,0.15);
+  }
+  nav button:hover { background: #002766; }
+  nav button.active {
+    background: #ffffff;
+    color: #003087;
+    font-weight: 700;
+  }
+
+  /* ---- Page container ---- */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 16px 60px;
+  }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  h1 { font-size: 24px; margin: 4px 0 14px; color: #003087; }
+  h2 { font-size: 18px; margin: 24px 0 10px; color: #003087; border-bottom: 2px solid #005eb8; padding-bottom: 4px; }
+  h3 { font-size: 15px; margin: 16px 0 6px; }
+  p { line-height: 1.55; max-width: 760px; }
+
+  .panel {
+    border: 1px solid #aeb7bd;
+    background: #f0f4f5;
+    padding: 14px 16px;
+    margin: 14px 0;
+  }
+  .notice {
+    border-left: 4px solid #ffb81c;
+    background: #fff9e6;
+    padding: 10px 14px;
+    margin: 14px 0;
+    font-size: 13px;
+  }
+
+  /* ---- Filter bar ---- */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    border: 1px solid #aeb7bd;
+    background: #f0f4f5;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+  }
+  .filters .field { display: flex; flex-direction: column; }
+  .filters label { font-size: 12px; font-weight: 700; margin-bottom: 4px; color: #425563; }
+  select, input[type=text] {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 6px 8px;
+    border: 2px solid #4c6272;
+    background: #fff;
+    min-width: 170px;
+  }
+  select:focus, input:focus, button:focus { outline: 3px solid #ffb81c; outline-offset: 0; }
+
+  button.btn {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 16px;
+    background: #007f3b;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  button.btn:hover { background: #00662f; }
+  button.btn.secondary { background: #4c6272; }
+  button.btn.secondary:hover { background: #384c58; }
+  button.btn:disabled { background: #aeb7bd; cursor: not-allowed; }
+
+  /* ---- Table ---- */
+  table { border-collapse: collapse; width: 100%; margin-top: 6px; font-size: 13px; }
+  th, td { border: 1px solid #aeb7bd; padding: 7px 10px; text-align: left; }
+  th { background: #005eb8; color: #fff; font-weight: 700; }
+  tr.datarow:hover { background: #e8f1fb; cursor: pointer; }
+  tr.datarow td .filelink { color: #005eb8; text-decoration: underline; font-weight: 700; }
+
+  .tag { display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: 700; border-radius: 2px; }
+  .tag.seizure { background: #da291c; color: #fff; }
+  .tag.pre { background: #425563; color: #fff; }
+  .tag.done { background: #007f3b; color: #fff; }
+  .tag.queued { background: #ffb81c; color: #212b32; }
+  .tag.running { background: #005eb8; color: #fff; }
+  .tag.none { background: #d8dde0; color: #425563; }
+
+  /* ---- Detail view ---- */
+  .backlink { display: inline-block; margin-bottom: 10px; font-size: 13px; cursor: pointer; color: #005eb8; text-decoration: underline; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 800px){ .detail-grid { grid-template-columns: 1fr; } .filters{ flex-direction: column; align-items: stretch; } }
+  .meta-table td:first-child { font-weight: 700; width: 46%; background: #f0f4f5; }
+
+  svg { display: block; background: #fff; border: 1px solid #aeb7bd; width: 100%; }
+  .cap { font-size: 12px; color: #425563; margin: 4px 0 0; }
+
+  .kv { font-size: 13px; }
+  .kv td:first-child { font-family: "Courier New", monospace; }
+
+  /* ---- Upload / HPC ---- */
+  .dropzone {
+    border: 2px dashed #4c6272;
+    background: #f0f4f5;
+    padding: 30px;
+    text-align: center;
+    color: #425563;
+  }
+  .queue-log {
+    font-family: "Courier New", monospace;
+    font-size: 12px;
+    background: #212b32;
+    color: #7ee787;
+    padding: 12px;
+    height: 150px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    border: 1px solid #003087;
+  }
+  footer {
+    border-top: 1px solid #aeb7bd;
+    padding: 14px 16px;
+    font-size: 12px;
+    color: #425563;
+    text-align: center;
+    background: #f0f4f5;
+  }
+  .legend { font-size: 12px; color: #425563; margin-top: 6px; }
+  .legend span { display: inline-block; margin-right: 14px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+
+  /* ---- Login screen ---- */
+  #login {
+    position: fixed; inset: 0;
+    background: #005eb8;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 100;
+  }
+  .login-card {
+    background: #fff; width: 100%; max-width: 420px;
+    border-top: 6px solid #003087;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    padding: 0;
+  }
+  .login-head {
+    background: #005eb8; color: #fff; padding: 16px 22px;
+    display: flex; align-items: center;
+  }
+  .login-head .nhs-logo { margin-right: 14px; }
+  .login-head .t { font-size: 15px; font-weight: 700; }
+  .login-body { padding: 22px; }
+  .login-body h1 { font-size: 20px; margin: 0 0 10px; }
+  .login-body p.intro { font-size: 13px; color: #425563; line-height: 1.5; margin: 0 0 18px; }
+  .login-body label { display:block; font-size:12px; font-weight:700; color:#425563; margin: 12px 0 4px; }
+  .login-body input {
+    width: 100%; font-family: inherit; font-size: 14px;
+    padding: 8px; border: 2px solid #4c6272; background:#fff;
+  }
+  .login-body .btn { width: 100%; margin-top: 18px; padding: 11px; font-size: 15px; }
+  .login-note { font-size: 11px; color: #768692; margin-top: 14px; text-align:center; line-height:1.4; }
+  body.locked { overflow: hidden; }
+  body.locked .topbar, body.locked nav, body.locked main, body.locked footer { display: none !important; }
+</style>
+</head>
+<body class="locked">
+
+<!-- ================= LOGIN ================= -->
+<div id="login">
+  <div class="login-card">
+    <div class="login-head">
+      <div class="nhs-logo">NHS</div>
+      <div class="t">Neural Network Inference Tool</div>
+    </div>
+    <div class="login-body">
+      <h1>Brain connectivity from EEG</h1>
+      <p class="intro">This tool recovers the directed connectivity network between brain regions
+      from multichannel EEG recordings, and groups patients by the shape of that network. It is
+      intended to support review of epileptic seizure recordings, not to replace clinical judgement.</p>
+
+      <label for="login-user">Clinician username</label>
+      <input type="text" id="login-user" placeholder="e.g. a.clinician" autocomplete="off">
+
+      <button class="btn" id="login-btn">Sign in</button>
+
+      <p class="login-note">Demonstration system · synthetic data only · no password required</p>
+    </div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="nhs-logo">NHS</div>
+  <div>
+    <span class="service-name">Neural Network Inference Tool</span>
+    <span class="service-sub">Clinical Neurophysiology · EEG Connectivity</span>
+  </div>
+  <div class="user">
+    Dr A. Clinician<br>
+    Neurophysiology Unit · Ward 4B
+  </div>
+</div>
+
+<nav>
+  <button data-page="data" class="active">EEG Recordings</button>
+  <button data-page="upload">Upload &amp; Analysis</button>
+</nav>
+
+<main>
+
+  <!-- ================= DATA ================= -->
+  <section class="page active" id="page-data">
+    <h1>EEG Recordings</h1>
+
+    <!-- FILE LIST VIEW -->
+    <div id="list-view">
+      <div class="filters">
+        <div class="field">
+          <label for="f-patient">Patient</label>
+          <select id="f-patient"><option value="">All patients</option></select>
+        </div>
+        <div class="field">
+          <label for="f-state">Seizure state</label>
+          <select id="f-state">
+            <option value="">All states</option>
+            <option value="pre">Before seizure</option>
+            <option value="seizure">During seizure</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-analysis">Analysis</label>
+          <select id="f-analysis">
+            <option value="">Any</option>
+            <option value="done">Results available</option>
+            <option value="pending">Not yet analysed</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-search">Search file</label>
+          <input type="text" id="f-search" placeholder="e.g. chb03">
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button class="btn secondary" id="f-reset">Reset filters</button>
+        </div>
+      </div>
+
+      <p class="cap" id="result-count"></p>
+      <table>
+        <thead>
+          <tr>
+            <th>File</th><th>Patient</th><th>State</th><th>Duration</th>
+            <th>Channels</th><th>Analysis</th><th>Cluster</th>
+          </tr>
+        </thead>
+        <tbody id="file-rows"></tbody>
+      </table>
+    </div>
+
+    <!-- DETAIL VIEW -->
+    <div id="detail-view" style="display:none">
+      <span class="backlink" id="back-to-list">&larr; Back to recordings</span>
+      <h1 id="d-title">Recording</h1>
+      <div id="d-nores" class="notice" style="display:none">
+        <strong>No results yet.</strong> This recording has not been analysed. Submit it from
+        <a href="#" id="d-goupload">Upload &amp; Analysis</a> to run SMC-ABC on the HPC cluster.
+      </div>
+
+      <div class="detail-grid">
+        <div>
+          <h2>Recording details</h2>
+          <table class="meta-table" id="d-meta"></table>
+
+          <h2>EEG traces</h2>
+          <svg id="d-eeg" viewBox="0 0 520 260" preserveAspectRatio="xMidYMid meet"></svg>
+          <p class="cap">Four frontal channels, 10-second window (illustrative).</p>
+        </div>
+
+        <div id="d-results">
+          <h2>Recovered network on scalp montage</h2>
+          <svg id="d-net" viewBox="0 0 340 360" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="legend">
+            <span><span class="dot" style="background:#005eb8"></span>Measured channel electrode</span>
+            <span><span class="dot" style="background:#d8dde0"></span>Other 10–20 electrode (context)</span>
+            <span style="display:block;margin-top:4px">Grey link = bipolar channel pair · blue arrow = recovered directed connection (opacity = posterior probability)</span>
+          </div>
+
+          <h2>Posterior parameters</h2>
+          <table class="kv" id="d-params"></table>
+
+          <h3>Edge probabilities <span style="font-weight:400;font-size:12px">P(j → k)</span></h3>
+          <table class="kv" id="d-edges"></table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= UPLOAD ================= -->
+  <section class="page" id="page-upload">
+    <h1>Upload &amp; Analysis</h1>
+    <p>Add a new EEG recording and submit it to the hospital high-performance computing (HPC)
+    cluster. The cluster runs SMC-ABC to recover the connectivity network and then clustering to place
+    the patient among existing groups. Results appear under EEG Recordings once the job completes.</p>
+
+    <div class="notice">Demonstration only — no file is uploaded or stored. The HPC run is simulated.</div>
+
+    <div class="detail-grid">
+      <div>
+        <h2>1 · Select recording</h2>
+        <div class="dropzone" id="dropzone">
+          <p style="margin:0 0 10px"><strong>Drop an EDF file here</strong><br>or choose one below</p>
+          <button class="btn secondary" id="fake-file">Choose file…</button>
+          <p class="cap" id="chosen-file" style="margin-top:10px">No file selected</p>
+        </div>
+
+        <h3>Recording details</h3>
+        <div class="filters" style="background:#fff;border:none;padding:0">
+          <div class="field">
+            <label for="u-patient">Patient ID</label>
+            <input type="text" id="u-patient" placeholder="e.g. chb23">
+          </div>
+          <div class="field">
+            <label for="u-state">Seizure state</label>
+            <select id="u-state">
+              <option value="pre">Before seizure</option>
+              <option value="seizure">During seizure</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2>2 · Submit to HPC</h2>
+        <p>Estimated run time for SMC-ABC + clustering: <strong>~8 minutes</strong> (simulated here in seconds).</p>
+        <button class="btn" id="submit-hpc" disabled>Submit to HPC cluster</button>
+        <h3>Job log</h3>
+        <div class="queue-log" id="hpc-log">Awaiting submission…</div>
+      </div>
+    </div>
+
+    <h2>Job queue</h2>
+    <table>
+      <thead><tr><th>Job</th><th>File</th><th>Patient</th><th>State</th><th>Status</th></tr></thead>
+      <tbody id="queue-rows">
+        <tr><td colspan="5" style="color:#425563">No jobs submitted this session.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<footer>
+  Neural Network Inference Tool · Clinical Neurophysiology · Demonstration interface — synthetic data only
+</footer>
+
+<script>
+/* ============================================================
+   Synthetic data. Nothing here is real.
+   ============================================================ */
+const CHANNELS = ["FP1–F7", "FP1–F3", "FP2–F4", "FP2–F8"];
+
+// deterministic pseudo-random so a file always looks the same
+function seeded(seed){ let s = seed % 2147483647; if (s<=0) s+=2147483646;
+  return ()=> (s = s*16807 % 2147483647) / 2147483647; }
+
+function makeNetwork(rand, connectivity){
+  // 4x4 posterior edge probabilities, no self-loops
+  const p = [];
+  for (let j=0;j<4;j++){ p.push([]); for(let k=0;k<4;k++){
+    if (j===k){ p[j].push(null); continue; }
+    let base = rand();
+    // seizure => stronger, denser edges
+    let v = base < connectivity ? 0.55 + rand()*0.45 : rand()*0.35;
+    p[j].push(Math.round(v*100)/100);
+  }}
+  return p;
+}
+
+let FILES = [];
+const patients = ["chb01","chb02","chb03","chb05","chb08","chb10","chb14"];
+patients.forEach((pid, pi) => {
+  ["pre","seizure"].forEach((state, si) => {
+    const rand = seeded((pi+1)*97 + (si+1)*31);
+    const analysed = !(pi===6);          // last patient not yet analysed
+    const connectivity = state==="seizure" ? 0.65 : 0.30;
+    const net = analysed ? makeNetwork(rand, connectivity) : null;
+    FILES.push({
+      id: `${pid}_${state}`,
+      file: `${pid}_${String(3+pi).padStart(2,'0')}.edf`,
+      patient: pid,
+      state,
+      duration: "40 s",
+      channels: 4,
+      analysed,
+      cluster: analysed ? (state==="seizure" ? (pi%2===0?"Group A":"Group B") : (pi%3===0?"Group C":"Group B")) : null,
+      A: analysed ? [3.2,3.25,3.25,3.25].map(a=>(a + (state==="seizure"?0.4:0)+ (rand()-0.5)*0.1).toFixed(3)) : null,
+      L: analysed ? (600 + rand()*200).toFixed(1) : null,
+      c: analysed ? (0.6 + rand()*0.25).toFixed(3) : null,
+      sigma: analysed ? (state==="seizure"? (900+rand()*400):(450+rand()*150)).toFixed(0) : null,
+      net
+    });
+  });
+});
+
+/* ---------- Navigation ---------- */
+const navButtons = document.querySelectorAll('nav button');
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  navButtons.forEach(b=>b.classList.toggle('active', b.dataset.page===name));
+  if(name==='data'){ showList(); }
+  window.scrollTo(0,0);
+}
+navButtons.forEach(b=> b.addEventListener('click', ()=>showPage(b.dataset.page)));
+
+/* ---------- Populate patient filter ---------- */
+const fPatient = document.getElementById('f-patient');
+patients.forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p; fPatient.appendChild(o); });
+
+/* ---------- File list rendering ---------- */
+const rowsBody = document.getElementById('file-rows');
+const resultCount = document.getElementById('result-count');
+
+function stateTag(s){ return s==="seizure"
+  ? '<span class="tag seizure">During seizure</span>'
+  : '<span class="tag pre">Before seizure</span>'; }
+function analysisTag(f){ return f.analysed
+  ? '<span class="tag done">Results available</span>'
+  : '<span class="tag none">Not analysed</span>'; }
+
+function currentFiles(){
+  const p = fPatient.value, st = document.getElementById('f-state').value,
+        an = document.getElementById('f-analysis').value,
+        q = document.getElementById('f-search').value.trim().toLowerCase();
+  return FILES.filter(f=>{
+    if(p && f.patient!==p) return false;
+    if(st && f.state!==st) return false;
+    if(an==="done" && !f.analysed) return false;
+    if(an==="pending" && f.analysed) return false;
+    if(q && !f.file.toLowerCase().includes(q) && !f.patient.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+function showList(){
+  document.getElementById('list-view').style.display='block';
+  document.getElementById('detail-view').style.display='none';
+  const list = currentFiles();
+  rowsBody.innerHTML = '';
+  list.forEach(f=>{
+    const tr = document.createElement('tr');
+    tr.className='datarow';
+    tr.innerHTML = `
+      <td><span class="filelink">${f.file}</span></td>
+      <td>${f.patient}</td>
+      <td>${stateTag(f.state)}</td>
+      <td>${f.duration}</td>
+      <td>${f.channels}</td>
+      <td>${analysisTag(f)}</td>
+      <td>${f.cluster ? f.cluster : '<span class="tag none">—</span>'}</td>`;
+    tr.addEventListener('click', ()=>openDetail(f.id));
+    rowsBody.appendChild(tr);
+  });
+  if(list.length===0){
+    rowsBody.innerHTML = '<tr><td colspan="7" style="color:#425563">No recordings match these filters.</td></tr>';
+  }
+  resultCount.textContent = `${list.length} recording${list.length===1?'':'s'} shown`;
+}
+['f-state','f-analysis'].forEach(id=>document.getElementById(id).addEventListener('change',showList));
+fPatient.addEventListener('change',showList);
+document.getElementById('f-search').addEventListener('input',showList);
+document.getElementById('f-reset').addEventListener('click',()=>{
+  fPatient.value=''; document.getElementById('f-state').value='';
+  document.getElementById('f-analysis').value=''; document.getElementById('f-search').value='';
+  showList();
+});
+
+/* ---------- Detail view ---------- */
+document.getElementById('back-to-list').addEventListener('click', showList);
+document.getElementById('d-goupload').addEventListener('click',(e)=>{e.preventDefault();showPage('upload');});
+
+function openDetail(id){
+  const f = FILES.find(x=>x.id===id);
+  document.getElementById('list-view').style.display='none';
+  document.getElementById('detail-view').style.display='block';
+  document.getElementById('d-title').textContent = `${f.file} · ${f.patient}`;
+
+  document.getElementById('d-meta').innerHTML = `
+    <tr><td>File</td><td>${f.file}</td></tr>
+    <tr><td>Patient ID</td><td>${f.patient}</td></tr>
+    <tr><td>Seizure state</td><td>${stateTag(f.state)}</td></tr>
+    <tr><td>Duration</td><td>${f.duration}</td></tr>
+    <tr><td>Channels</td><td>${CHANNELS.join(', ')}</td></tr>
+    <tr><td>Sampling</td><td>256 Hz</td></tr>
+    <tr><td>Analysis</td><td>${analysisTag(f)}</td></tr>
+    <tr><td>Assigned cluster</td><td>${f.cluster || '—'}</td></tr>`;
+
+  drawEEG('d-eeg', f);
+
+  const results = document.getElementById('d-results');
+  const nores = document.getElementById('d-nores');
+  if(!f.analysed){
+    results.style.display='none';
+    nores.style.display='block';
+  } else {
+    results.style.display='block';
+    nores.style.display='none';
+    drawNetwork('d-net', f.net);
+    document.getElementById('d-params').innerHTML = `
+      <tr><td>A₁…A₄ (excitation)</td><td>${f.A.join(',  ')}</td></tr>
+      <tr><td>L (coupling strength)</td><td>${f.L}</td></tr>
+      <tr><td>c (distance decay)</td><td>${f.c}</td></tr>
+      <tr><td>σ (input noise)</td><td>${f.sigma}</td></tr>`;
+    let er = '';
+    for(let j=0;j<4;j++)for(let k=0;k<4;k++){
+      if(f.net[j][k]===null) continue;
+      const v=f.net[j][k];
+      const strong = v>=0.5;
+      er += `<tr><td>${j+1} → ${k+1}</td><td>${v.toFixed(2)} ${strong?'<span class="tag done" style="padding:1px 6px">edge</span>':''}</td></tr>`;
+    }
+    document.getElementById('d-edges').innerHTML = er;
+  }
+  window.scrollTo(0,0);
+}
+
+/* ---------- EEG trace drawing ---------- */
+function drawEEG(svgId, f){
+  const svg = document.getElementById(svgId);
+  svg.innerHTML='';
+  const W=520,H=260, rows=4, pad=8, rowH=(H-2*pad)/rows;
+  const seizure = f.state==="seizure";
+  const rand = seeded(f.id.split('').reduce((a,ch)=>a+ch.charCodeAt(0),0));
+  for(let r=0;r<rows;r++){
+    const yMid = pad + rowH*r + rowH/2;
+    // label
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x',4); lbl.setAttribute('y',yMid-rowH/2+12);
+    lbl.setAttribute('font-size','9'); lbl.setAttribute('fill','#425563');
+    lbl.textContent = CHANNELS[r]; svg.appendChild(lbl);
+    // baseline
+    const base=document.createElementNS('http://www.w3.org/2000/svg','line');
+    base.setAttribute('x1',60); base.setAttribute('x2',W-6);
+    base.setAttribute('y1',yMid); base.setAttribute('y2',yMid);
+    base.setAttribute('stroke','#e1e6e8'); svg.appendChild(base);
+    // waveform
+    let d='M 60 '+yMid, x=60, phase=rand()*6;
+    const N=230;
+    for(let i=0;i<N;i++){
+      x = 60 + (W-66)*(i/N);
+      let val = Math.sin(i*0.25+phase)*4 + Math.sin(i*0.6+phase)*2;
+      if(seizure){
+        // sharper spikes during seizure
+        val += (Math.sin(i*1.1+phase)* (rand()>0.85? 14:5));
+        if(rand()>0.94) val += (rand()-0.5)*30;
+      } else {
+        val += (rand()-0.5)*4;
+      }
+      const y = yMid - Math.max(-rowH/2+3, Math.min(rowH/2-3, val));
+      d += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+    }
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',d); path.setAttribute('fill','none');
+    path.setAttribute('stroke', seizure ? '#da291c' : '#003087');
+    path.setAttribute('stroke-width','1'); svg.appendChild(path);
+  }
+}
+
+/* ---------- Network graph drawing: top-down scalp montage (10-20 system) ---------- */
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs){ const e=document.createElementNS(SVGNS,tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+
+// 10-20 electrode positions on a top-down head. viewBox 340x360.
+// Front (nasion) at top, back (inion) at bottom, left ear at left.
+const HEAD = { cx:170, cy:185, rx:130, ry:150 };
+const ELECTRODES = {
+  Fp1:{x:135,y:70}, Fp2:{x:205,y:70},
+  F7:{x:72,y:112},  F3:{x:120,y:118}, Fz:{x:170,y:120}, F4:{x:220,y:118}, F8:{x:268,y:112},
+  T3:{x:52,y:185},  C3:{x:111,y:185}, Cz:{x:170,y:185}, C4:{x:229,y:185}, T4:{x:288,y:185},
+  T5:{x:72,y:258},  P3:{x:120,y:252}, Pz:{x:170,y:250}, P4:{x:220,y:252}, T6:{x:268,y:258},
+  O1:{x:140,y:300}, O2:{x:200,y:300}
+};
+// The four bipolar channels, in the model's node order (1..4).
+const CHANNEL_PAIRS = [ ["Fp1","F7"], ["Fp1","F3"], ["Fp2","F4"], ["Fp2","F8"] ];
+// Electrodes that are actually part of a measured channel -> highlighted.
+const MEASURED = new Set(CHANNEL_PAIRS.flat());
+
+function drawNetwork(svgId, net){
+  const svg = document.getElementById(svgId);
+  svg.innerHTML='';
+
+  // arrowhead marker (small, black)
+  const defs = svgEl('defs',{});
+  defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+      markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#212b32"></path></marker>`;
+  svg.appendChild(defs);
+
+  // --- Head outline ---
+  svg.appendChild(svgEl('ellipse',{cx:HEAD.cx,cy:HEAD.cy,rx:HEAD.rx,ry:HEAD.ry,
+    fill:'#fdfdfd',stroke:'#212b32','stroke-width':2}));
+  // nose (nasion, front/top)
+  svg.appendChild(svgEl('path',{d:`M ${HEAD.cx-14} ${HEAD.cy-HEAD.ry+4}
+    Q ${HEAD.cx} ${HEAD.cy-HEAD.ry-18} ${HEAD.cx+14} ${HEAD.cy-HEAD.ry+4}`,
+    fill:'#fdfdfd',stroke:'#212b32','stroke-width':2}));
+  // ears
+  svg.appendChild(svgEl('ellipse',{cx:HEAD.cx-HEAD.rx+2,cy:HEAD.cy,rx:8,ry:18,
+    fill:'#fdfdfd',stroke:'#212b32','stroke-width':2}));
+  svg.appendChild(svgEl('ellipse',{cx:HEAD.cx+HEAD.rx-2,cy:HEAD.cy,rx:8,ry:18,
+    fill:'#fdfdfd',stroke:'#212b32','stroke-width':2}));
+  // front / back labels
+  svg.appendChild(svgEl('text',{x:HEAD.cx,y:16,'text-anchor':'middle','font-size':10,
+    fill:'#425563'})).textContent='NASION (front)';
+  svg.appendChild(svgEl('text',{x:HEAD.cx,y:352,'text-anchor':'middle','font-size':10,
+    fill:'#425563'})).textContent='INION (back)';
+
+  // --- All electrodes (grey context first) ---
+  for(const name in ELECTRODES){
+    if(MEASURED.has(name)) continue;
+    const e=ELECTRODES[name];
+    svg.appendChild(svgEl('circle',{cx:e.x,cy:e.y,r:11,fill:'#eef1f2',stroke:'#c3cbd0','stroke-width':1}));
+    const t=svgEl('text',{x:e.x,y:e.y+3,'text-anchor':'middle','font-size':8,fill:'#9aa6ad'});
+    t.textContent=name; svg.appendChild(t);
+  }
+
+  // --- Bipolar channel pair links (grey, shows where each channel sits) ---
+  CHANNEL_PAIRS.forEach(([a,b])=>{
+    const p=ELECTRODES[a], q=ELECTRODES[b];
+    svg.appendChild(svgEl('line',{x1:p.x,y1:p.y,x2:q.x,y2:q.y,
+      stroke:'#8c99a1','stroke-width':2,'stroke-dasharray':'4 3'}));
+  });
+
+  // --- Node position for each CHANNEL = midpoint of its electrode pair ---
+  // Channels 1 and 4 (index 0,3) are nudged upward so the directed
+  // connections between the four nodes read more clearly.
+  const NODE_LIFT = [ -26, 0, 0, -26 ];
+  const nodePos = CHANNEL_PAIRS.map(([a,b],i)=>({
+    x:(ELECTRODES[a].x+ELECTRODES[b].x)/2,
+    y:(ELECTRODES[a].y+ELECTRODES[b].y)/2 + NODE_LIFT[i]
+  }));
+
+  // --- Directed connections between channels (posterior >= 0.5) ---
+  // Straight line for a single direction; if both j->k and k->j are present,
+  // curve each one slightly in opposite directions so both are visible.
+  const isEdge = (j,k) => net[j][k]!==null && net[j][k]>=0.5;
+  for(let j=0;j<4;j++)for(let k=0;k<4;k++){
+    if(!isEdge(j,k)) continue;
+    const p=net[j][k];
+    const A=nodePos[j], B=nodePos[k];
+    const dx=B.x-A.x, dy=B.y-A.y, len=Math.hypot(dx,dy)||1;
+    const ux=dx/len, uy=dy/len, off=13;
+    const sx=A.x+ux*off, sy=A.y+uy*off, ex=B.x-ux*off, ey=B.y-uy*off;
+    const reciprocal = isEdge(k,j);
+    let d;
+    if(reciprocal){
+      // Both directions exist: bow each edge. Because the direction vector
+      // (ux,uy) points opposite for j->k vs k->j, a constant bend sign places
+      // the two curves on opposite physical sides so both remain visible.
+      const bend = 9;
+      const mx=(sx+ex)/2 + uy*bend, my=(sy+ey)/2 - ux*bend;
+      d=`M ${sx} ${sy} Q ${mx} ${my} ${ex} ${ey}`;
+    } else {
+      d=`M ${sx} ${sy} L ${ex} ${ey}`;
+    }
+    svg.appendChild(svgEl('path',{
+      d, fill:'none', stroke:'#212b32',
+      'stroke-width':(0.8+p*1.6).toFixed(2),
+      'stroke-opacity':Math.max(0.4,p).toFixed(2),
+      'marker-end':'url(#arrow)'}));
+  }
+
+  // --- Highlighted (measured) electrodes on top ---
+  for(const name of MEASURED){
+    const e=ELECTRODES[name];
+    svg.appendChild(svgEl('circle',{cx:e.x,cy:e.y,r:13,fill:'#005eb8',stroke:'#003087','stroke-width':2}));
+    const t=svgEl('text',{x:e.x,y:e.y+3,'text-anchor':'middle','font-size':8.5,fill:'#fff','font-weight':700});
+    t.textContent=name; svg.appendChild(t);
+  }
+
+  // --- Channel number badges at each node midpoint ---
+  nodePos.forEach((n,i)=>{
+    svg.appendChild(svgEl('circle',{cx:n.x,cy:n.y,r:9,fill:'#ffb81c',stroke:'#212b32','stroke-width':1}));
+    const t=svgEl('text',{x:n.x,y:n.y+3.5,'text-anchor':'middle','font-size':10,fill:'#212b32','font-weight':700});
+    t.textContent=(i+1); svg.appendChild(t);
+  });
+}
+
+/* ============================================================
+   Upload + simulated HPC job
+   ============================================================ */
+let chosen = null, jobCounter = 0;
+const submitBtn = document.getElementById('submit-hpc');
+document.getElementById('fake-file').addEventListener('click', ()=>{
+  chosen = 'recording_' + (Math.floor(Math.random()*9000)+1000) + '.edf';
+  document.getElementById('chosen-file').textContent = 'Selected: ' + chosen;
+  refreshSubmit();
+});
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e=>{e.preventDefault(); dz.style.background='#e8f1fb';});
+dz.addEventListener('dragleave', ()=>dz.style.background='#f0f4f5');
+dz.addEventListener('drop', e=>{
+  e.preventDefault(); dz.style.background='#f0f4f5';
+  chosen = (e.dataTransfer.files[0]?.name) || 'dropped_recording.edf';
+  document.getElementById('chosen-file').textContent = 'Selected: ' + chosen;
+  refreshSubmit();
+});
+document.getElementById('u-patient').addEventListener('input', refreshSubmit);
+function refreshSubmit(){
+  const pid = document.getElementById('u-patient').value.trim();
+  submitBtn.disabled = !(chosen && pid);
+}
+
+const logEl = document.getElementById('hpc-log');
+const queueBody = document.getElementById('queue-rows');
+function log(line){ logEl.textContent += '\n'+line; logEl.scrollTop = logEl.scrollHeight; }
+
+submitBtn.addEventListener('click', ()=>{
+  const pid = document.getElementById('u-patient').value.trim();
+  const state = document.getElementById('u-state').value;
+  const jobId = 'JOB-' + String(++jobCounter).padStart(3,'0');
+  submitBtn.disabled = true;
+
+  // add to queue table
+  if(queueCleared===false){ queueBody.innerHTML=''; queueCleared=true; }
+  const row = document.createElement('tr');
+  row.innerHTML = `<td>${jobId}</td><td>${chosen}</td><td>${pid}</td>
+    <td>${state==="seizure"?stateTag("seizure"):stateTag("pre")}</td>
+    <td id="${jobId}-status"><span class="tag queued">Queued</span></td>`;
+  queueBody.appendChild(row);
+  const statusCell = document.getElementById(jobId+'-status');
+
+  logEl.textContent = `[${jobId}] Submitted ${chosen} (patient ${pid}, ${state})`;
+  const steps = [
+    [900,  '[HPC] Job queued on cluster · 64 cores requested'],
+    [1600, '[HPC] Loading EEG · resampling to 256 Hz · extracting 4 frontal channels'],
+    [2400, '[SMC-ABC] Pilot run · computing summary statistics (density, spectral, cross-corr)'],
+    [3200, '[SMC-ABC] Iteration 1/6 · acceptance 12.4%'],
+    [3900, '[SMC-ABC] Iteration 3/6 · acceptance 4.1% · refining posterior'],
+    [4600, '[SMC-ABC] Iteration 6/6 · acceptance 0.3% · stopping criterion met'],
+    [5300, '[CLUSTER] Placing patient among network population · Bayesian clustering'],
+    [6000, '[DONE] Network recovered · posterior parameters written · cluster assigned']
+  ];
+  statusCell.innerHTML = '<span class="tag running">Running</span>';
+  steps.forEach(([t,msg])=> setTimeout(()=>log(msg), t));
+
+  setTimeout(()=>{
+    statusCell.innerHTML = '<span class="tag done">Complete</span>';
+    // create a new analysed file and add to dataset
+    const rand = seeded(jobId.length + pid.length*13 + Date.now()%1000);
+    const connectivity = state==="seizure"?0.65:0.30;
+    if(!patients.includes(pid)){ patients.push(pid);
+      const o=document.createElement('option'); o.value=pid; o.textContent=pid; fPatient.appendChild(o); }
+    FILES.push({
+      id: `${pid}_${state}_${jobCounter}`,
+      file: chosen, patient: pid, state, duration:"40 s", channels:4,
+      analysed:true,
+      cluster: state==="seizure"?"Group A":"Group B",
+      A:[3.2,3.25,3.25,3.25].map(a=>(a+(state==="seizure"?0.4:0)+(rand()-0.5)*0.1).toFixed(3)),
+      L:(600+rand()*200).toFixed(1), c:(0.6+rand()*0.25).toFixed(3),
+      sigma:(state==="seizure"?(900+rand()*400):(450+rand()*150)).toFixed(0),
+      net: makeNetwork(rand, connectivity)
+    });
+    log(`[${jobId}] Results now available under EEG Recordings for patient ${pid}.`);
+    chosen=null;
+    document.getElementById('chosen-file').textContent='No file selected';
+    document.getElementById('u-patient').value='';
+  }, 6600);
+});
+let queueCleared=false;
+
+/* ---------- Login gate ---------- */
+function doLogin(){
+  const raw = document.getElementById('login-user').value.trim();
+  const name = raw || 'clinician';
+  // Build a display name: "a.clinician" -> "Dr A. Clinician"
+  let display = 'Dr ' + name.split(/[.\s_]+/).filter(Boolean)
+    .map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+  const userBox = document.querySelector('.topbar .user');
+  if(userBox) userBox.innerHTML = display + '<br>Neurophysiology Unit · Ward 4B';
+  document.getElementById('login').style.display = 'none';
+  document.body.classList.remove('locked');
+  window.scrollTo(0,0);
+}
+document.getElementById('login-btn').addEventListener('click', doLogin);
+document.getElementById('login-user').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+/* init */
+showList();
+</script>
+</body>
+</html>
